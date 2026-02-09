@@ -1,63 +1,37 @@
-let accData = [];
-let micData = [];
-let scanDuration = 30; // seconds
-let scanTimer;
-async function startScan() {
-  accData = [];
-  micData = [];
+document.querySelector("button").addEventListener("click", async () => {
 
-  console.log("Scan started");
-
-  // ---- ACCELEROMETER ----
-  function onMotion(event) {
-    const x = event.accelerationIncludingGravity.x || 0;
-    const y = event.accelerationIncludingGravity.y || 0;
-    const z = event.accelerationIncludingGravity.z || 0;
-
-    const magnitude = Math.sqrt(x*x + y*y + z*z);
-    accData.push(magnitude);
-  }
-
-  window.addEventListener("devicemotion", onMotion);
-
-  // ---- MICROPHONE ----
+  // MIC PART
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const audioContext = new AudioContext();
   const source = audioContext.createMediaStreamSource(stream);
   const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 256;
-
   source.connect(analyser);
 
   const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-  function captureMic() {
+  function updateMic() {
     analyser.getByteFrequencyData(dataArray);
-    let avg = dataArray.reduce((a,b) => a+b, 0) / dataArray.length;
-    micData.push(avg);
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      sum += dataArray[i];
+    }
+    let average = sum / dataArray.length;
+    document.getElementById("micLevel").innerText = average.toFixed(2);
+    requestAnimationFrame(updateMic);
   }
 
-  scanTimer = setInterval(captureMic, 200);
+  updateMic();
 
-  // ---- STOP AFTER 30 SECONDS ----
-  setTimeout(() => {
-    window.removeEventListener("devicemotion", onMotion);
-    clearInterval(scanTimer);
-    stream.getTracks().forEach(track => track.stop());
+  // ACCELEROMETER PART
+  window.addEventListener("devicemotion", function(event) {
+    if (event.acceleration) {
+      document.getElementById("accX").innerText =
+        event.acceleration.x?.toFixed(2);
+      document.getElementById("accY").innerText =
+        event.acceleration.y?.toFixed(2);
+      document.getElementById("accZ").innerText =
+        event.acceleration.z?.toFixed(2);
+    }
+  });
 
-    analyzeScan();
-  }, scanDuration * 1000);
-}
-function analyzeScan() {
-  const accMax = Math.max(...accData);
-  const micMax = Math.max(...micData);
-
-  console.log("ACC max:", accMax);
-  console.log("MIC max:", micMax);
-
-  if (accMax > 25 || micMax > 80) {
-    console.log("❌ Invalid Scan: Too much noise or movement");
-  } else {
-    console.log("✅ Valid Scan: Data usable");
-  }
-}
+});
